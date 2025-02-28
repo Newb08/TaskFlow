@@ -10,7 +10,8 @@ const typeDefs = `
         id: ID!,
         name: String,
         email: String!,
-        role: Role!
+        role: Role!,
+        tasks: [Task]
     }
     
     type Task {
