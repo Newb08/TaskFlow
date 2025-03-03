@@ -36,6 +36,7 @@ const typeDefs = `
         createTask(title: String!, userId: ID!): Task
         updateTask(id: ID!, title: String!): Task
         deleteTask(id: ID!): Task
+        login(email: String!, password: String!): String
     }
 `;
 

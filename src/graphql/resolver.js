@@ -1,5 +1,10 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import dotenv from 'dotenv';
+import jwt from 'jsonwebtoken';
+
+dotenv.config();
+const SECRET_KEY = process.env.JWT_SECRET || 'secretKey';
 
 const prisma = new PrismaClient();
 
@@ -7,12 +12,14 @@ const resolvers = {
   Query: {
     getAllUsers: async () => {
       try {
-        await prisma.user.findMany();
+        return await prisma.user.findMany();
       } catch (error) {
         console.log('Error from getAllUsers', error);
       }
     },
-    getUserById: async (_, { id }) => {
+    getUserById: async (_, { id }, context) => {
+      // console.log("Context: ",context)
+      if (!context.user) throw new Error('Unauthorized');
       try {
         const user = await prisma.user.findFirst({
           where: { id: id },
@@ -25,7 +32,7 @@ const resolvers = {
     },
     getAllTasks: async () => {
       try {
-        await prisma.task.findMany();
+        return await prisma.task.findMany();
       } catch (error) {
         console.log('Error from getAllTasks', error);
       }
@@ -99,6 +106,20 @@ const resolvers = {
         });
       } catch (error) {
         console.log('Error from deleteTask', error);
+      }
+    },
+    login: async (_, arg) => {
+      try {
+        const { email, password } = arg;
+        const user = await prisma.user.findFirst({
+          where: { email: email },
+        });
+        if (!user || !bcrypt.compareSync(password, user.password))
+          throw new Error('Incorrect Password/User-email');
+
+        return jwt.sign({ id: user.id, role: user.role }, SECRET_KEY, { expiresIn: '1h' });
+      } catch (error) {
+        console.log(error);
       }
     },
   },
