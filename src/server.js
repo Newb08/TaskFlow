@@ -3,8 +3,6 @@ import { ApolloServer } from '@apollo/server';
 import { expressMiddleware } from '@apollo/server/express4';
 import cors from 'cors';
 import bodyParser from 'body-parser';
-// import 'graphql-import-node';
-// import typeDefs from '../schema.graphql';
 import resolvers from './graphql/resolver.js';
 import getUser from './middleware/userAuthentication.js';
 import { loadFilesSync } from "@graphql-tools/load-files";

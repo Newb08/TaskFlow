@@ -11,31 +11,53 @@ const prisma = new PrismaClient();
 
 const resolvers = {
   Query: {
-    getAllUsers: async (parent, _, context) => {
+    getUsers: async (parent, { data, orderBy }, context) => {
+      // console.log(parent)
       try {
         adminAuth(context);
-        return await prisma.user.findMany();
-      } catch (error) {
-        console.log('Error from getAllUsers', error);
-      }
-    },
-    getUserById: async (_, { id }, context) => {
-      // console.log("Context: ",context)
-      try {
-        try {
-          userAuth(context, id);
-        } catch {
-          adminAuth(context);
+        const { role, limit, offset, status, names_in, userWithoutTasks, ids_in } = data || {};
+
+        let order = {};
+        if (orderBy) {
+          const [field, direction] = orderBy.split('_');
+          order = { [field]: direction };
         }
-        const user = await prisma.user.findFirst({
-          where: { id: id },
+        return await prisma.user.findMany({
+          where: {
+            role,
+            id: { in: ids_in },
+            name: { in: names_in },
+            tasks: userWithoutTasks
+              ? { none: {} }
+              : status
+              ? { some: { status: status } }
+              : undefined,
+          },
+          take: limit,
+          skip: offset,
+          orderBy: order,
         });
-        if (!user) throw new Error('User not found');
-        return user;
       } catch (error) {
-        console.log('Error from getUserById', error);
+        console.log('Error from getUsers', error);
       }
     },
+    // getUserById: async (_, { id }, context) => {
+    //   // console.log("Context: ",context)
+    //   try {
+    //     try {
+    //       userAuth(context, id);
+    //     } catch {
+    //       adminAuth(context);
+    //     }
+    //     const user = await prisma.user.findFirst({
+    //       where: { id: id },
+    //     });
+    //     if (!user) throw new Error('User not found');
+    //     return user;
+    //   } catch (error) {
+    //     console.log('Error from getUserById', error);
+    //   }
+    // },
     getAllTasks: async () => {
       try {
         return await prisma.task.findMany();
@@ -54,18 +76,17 @@ const resolvers = {
         console.log('Error from getTaskById', error);
       }
     },
-    getUsers: async (_, { data }, context) => {
+    getLoggedUser: async (parent, _, context) => {
       try {
-        adminAuth(context);
-        const { role, limit=2, offset=0 } = data || {};
-
-        return await prisma.user.findMany({
-          where: { role },
-          take: limit,
-          skip: offset,
+        const userId = userAuth(context);
+        if (!userId) throw new Error('Unauthorized');
+        const user = await prisma.user.findFirst({
+          where: { id: userId },
         });
+        if (!user) throw new Error('User not found');
+        return user;
       } catch (error) {
-        console.log('Error from getUsers', error);
+        console.log('Error from getUserById', error);
       }
     },
   },
@@ -73,7 +94,7 @@ const resolvers = {
     createUser: async (_, { data }, context) => {
       try {
         adminAuth(context);
-        const { role="USER", name, email, password } = data || {};
+        const { role = 'USER', name, email, password } = data || {};
         const encryptPass = await bcrypt.hash(password, 10);
         return await prisma.user.create({
           data: { email, password: encryptPass, name, role },
@@ -82,12 +103,22 @@ const resolvers = {
         console.log('Error from createUser', error);
       }
     },
-    updateUser: async (_, { id, name }, context) => {
+    updateUser: async (_, { id, where }, context) => {
       try {
-        adminAuth(context);
+        if (!context.user) throw new Error('Unauthorized');
+        if (context.user.role !== 'ADMIN' && context.user.id !== id)
+          throw new Error('Unauthorized: You can only update your own profile.');
+
+        const { name, profilePic, password } = where || {};
+        let updatedData = {};
+
+        if (name) updatedData.name = name;
+        if (password) updatedData.password = await bcrypt.hash(password, 10);
+        if (profilePic) updatedData.profilePic = profilePic;
+
         return await prisma.user.update({
           where: { id: id },
-          data: { name: name },
+          data: updatedData,
         });
       } catch (error) {
         console.log('Error from updateUser', error);
@@ -131,7 +162,7 @@ const resolvers = {
         console.log('Error from deleteTask', error);
       }
     },
-    login: async (_, arg) => {
+    login: async (parent, arg) => {
       try {
         const { email, password } = arg;
         const user = await prisma.user.findFirst({
@@ -159,6 +190,7 @@ const resolvers = {
   },
   User: {
     tasks: async (parent) => {
+      // console.log(parent);
       try {
         return await prisma.task.findMany({
           where: { assigneeId: parent.id },
