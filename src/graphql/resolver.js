@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
+import { adminAuth, userAuth } from '../utils/requireAuth.js';
 
 dotenv.config();
 const SECRET_KEY = process.env.JWT_SECRET || 'secretKey';
@@ -10,8 +11,9 @@ const prisma = new PrismaClient();
 
 const resolvers = {
   Query: {
-    getAllUsers: async () => {
+    getAllUsers: async (parent, _, context) => {
       try {
+        adminAuth(context);
         return await prisma.user.findMany();
       } catch (error) {
         console.log('Error from getAllUsers', error);
@@ -19,8 +21,12 @@ const resolvers = {
     },
     getUserById: async (_, { id }, context) => {
       // console.log("Context: ",context)
-      if (!context.user) throw new Error('Unauthorized');
       try {
+        try {
+          userAuth(context, id);
+        } catch {
+          adminAuth(context);
+        }
         const user = await prisma.user.findFirst({
           where: { id: id },
         });
@@ -48,21 +54,37 @@ const resolvers = {
         console.log('Error from getTaskById', error);
       }
     },
+    getUsers: async (_, { data }, context) => {
+      try {
+        adminAuth(context);
+        const { role, limit=2, offset=0 } = data || {};
+
+        return await prisma.user.findMany({
+          where: { role },
+          take: limit,
+          skip: offset,
+        });
+      } catch (error) {
+        console.log('Error from getUsers', error);
+      }
+    },
   },
   Mutation: {
-    createUser: async (_, { email, password, name, role }) => {
+    createUser: async (_, { data }, context) => {
       try {
+        adminAuth(context);
+        const { role="USER", name, email, password } = data || {};
         const encryptPass = await bcrypt.hash(password, 10);
-
         return await prisma.user.create({
-          data: { email: email, password: encryptPass, name: name, role: role },
+          data: { email, password: encryptPass, name, role },
         });
       } catch (error) {
         console.log('Error from createUser', error);
       }
     },
-    updateUser: async (_, { id, name }) => {
+    updateUser: async (_, { id, name }, context) => {
       try {
+        adminAuth(context);
         return await prisma.user.update({
           where: { id: id },
           data: { name: name },
@@ -71,8 +93,9 @@ const resolvers = {
         console.log('Error from updateUser', error);
       }
     },
-    deleteUser: async (_, { id }) => {
+    deleteUser: async (_, { id }, context) => {
       try {
+        adminAuth(context);
         return await prisma.user.delete({
           where: { id: id },
         });

@@ -3,9 +3,13 @@ import { ApolloServer } from '@apollo/server';
 import { expressMiddleware } from '@apollo/server/express4';
 import cors from 'cors';
 import bodyParser from 'body-parser';
-import typeDefs from './graphql/typeDef.js';
+// import 'graphql-import-node';
+// import typeDefs from '../schema.graphql';
 import resolvers from './graphql/resolver.js';
 import getUser from './middleware/userAuthentication.js';
+import { loadFilesSync } from "@graphql-tools/load-files";
+
+const typeDefs = loadFilesSync("./schema.graphql", { extensions: ["graphql"] });
 
 const app = express();
 
@@ -21,9 +25,9 @@ app.use(
   '/graphql',
   expressMiddleware(server, {
     context: async ({ req }) => {
-      console.log("Req", req.headers)
+      // console.log("Req", req.headers)
       const user = getUser(req);
-      console.log(user);
+      // console.log(user);
       return { user };
     },
   }),
