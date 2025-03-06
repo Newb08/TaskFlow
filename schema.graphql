@@ -11,6 +11,7 @@ type User {
   email: String!
   role: Role!
   tasks: [Task]
+  profilePic: String
 }
 
 type Task {
@@ -40,6 +41,7 @@ type Mutation {
   updateTask(taskId: ID!, input: UpdateTaskInput): Task
   deleteTask(where: TaskQueryInput): Count
   login(email: String!, password: String!): String
+  uploadImg(id: ID!): User
 }
 
 input UserQueryInput {
@@ -88,7 +90,6 @@ input CreateUserInput {
 input UpdateUserInput {
   name: String
   password: String
-  profilePic: String
   email: String
 }
 

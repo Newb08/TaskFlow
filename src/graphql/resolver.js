@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
 import { adminAuth, userAuth } from '../utils/requireAuth.js';
+import { putObjectURL } from '../utils/uploadImg.js';
 
 dotenv.config();
 const SECRET_KEY = process.env.JWT_SECRET || 'secretKey';
@@ -40,6 +41,7 @@ const resolvers = {
         console.log('Error from getUsers', error);
       }
     },
+
     getLoggedUser: async (parent, _, context) => {
       try {
         const { userId } = userAuth(context);
@@ -53,6 +55,7 @@ const resolvers = {
         console.log('Error from getLoggedUser', error);
       }
     },
+
     getTasks: async (parent, { data, orderBy, limit = 10, offset = 0 }, context) => {
       try {
         adminAuth(context);
@@ -78,6 +81,7 @@ const resolvers = {
         console.log('Error from getTasks', error);
       }
     },
+
     getLoggedTask: async (parent, { data, orderBy, limit = 10, offset = 0 }, context) => {
       try {
         const { userId } = userAuth(context);
@@ -107,6 +111,7 @@ const resolvers = {
       }
     },
   },
+
   Mutation: {
     // User CUD Operations
     createUser: async (_, { data }, context) => {
@@ -121,18 +126,18 @@ const resolvers = {
         console.log('Error from createUser', error);
       }
     },
+
     updateUser: async (_, { id, where }, context) => {
       try {
         if (!context.user) throw new Error('Unauthorized');
         if (context.user.role !== 'ADMIN' && context.user.id !== id)
           throw new Error('Unauthorized: You can only update your own profile.');
 
-        const { name, profilePic, password, email } = where || {};
+        const { name, password, email } = where || {};
         let updatedData = {};
 
         if (name) updatedData.name = name;
         if (password) updatedData.password = await bcrypt.hash(password, 10);
-        if (profilePic) updatedData.profilePic = profilePic;
         if (email) updatedData.email = email;
 
         return await prisma.user.update({
@@ -143,6 +148,7 @@ const resolvers = {
         console.log('Error from updateUser', error);
       }
     },
+
     deleteUser: async (_, { input }, context) => {
       try {
         adminAuth(context);
@@ -183,6 +189,7 @@ const resolvers = {
         console.log('Error from addTask', error);
       }
     },
+
     createTask: async (_, { input }, context) => {
       try {
         const { userId } = userAuth(context);
@@ -202,6 +209,7 @@ const resolvers = {
         console.log('Error from createTask', error);
       }
     },
+
     updateTask: async (_, { taskId, input }, context) => {
       try {
         const { userId, role } = userAuth(context);
@@ -217,10 +225,9 @@ const resolvers = {
         const whereCondition = {
           id: taskId,
         };
-        if(role === "USER"){
-          whereCondition.assigneeId= userId
-          if(title)
-          updatedData.uniqueTitle = `${userId}_${title}`;
+        if (role === 'USER') {
+          whereCondition.assigneeId = userId;
+          if (title) updatedData.uniqueTitle = `${userId}_${title}`;
         }
         // console.log(updatedData)
         return await prisma.task.update({
@@ -231,6 +238,7 @@ const resolvers = {
         console.log('Error from updateTask', error);
       }
     },
+
     deleteTask: async (_, { where }, context) => {
       try {
         const { userId, role } = userAuth(context);
@@ -253,6 +261,7 @@ const resolvers = {
         console.log('Error from deleteTask', error);
       }
     },
+
     login: async (parent, arg) => {
       try {
         const { email, password } = arg;
@@ -267,7 +276,24 @@ const resolvers = {
         console.log(error);
       }
     },
+
+    uploadImg: async (_, { id }, context) => {
+      try {
+        const { userId, role } = userAuth(context);
+        const img = await putObjectURL(`${userId}.jpg`, 'image/jpg');
+        console.log(img)
+        const imgUrl = img.split('.jpg')[0] + '.jpg';
+        const uid = role === 'ADMIN' ? id : userId;
+        await prisma.user.update({
+          where: { id: uid },
+          data: { profilePic: imgUrl },
+        });
+      } catch (error) {
+        console.error('Error while uploading img', error);
+      }
+    },
   },
+
   Task: {
     assignee: async (parent) => {
       try {
@@ -279,6 +305,7 @@ const resolvers = {
       }
     },
   },
+
   User: {
     tasks: async (parent) => {
       try {
