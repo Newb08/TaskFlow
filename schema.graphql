@@ -16,45 +16,53 @@ type User {
 type Task {
   id: ID!
   title: String!
-  status: String!
+  status: TaskStatus!
   assignee: User!
   createdAt: Date!
+  uniqueTitle: String
+  description: String
+  createdBy: Role
 }
 
 type Query {
-  # getUserById(id: ID!): User
-  getAllTasks: [Task]
-  getTaskById(id: ID!): Task
-  getUsers(data: UserQueryInput!, orderBy: UserOrderBy): [User]
-  getLoggedUser:User
+  getUsers(data: UserQueryInput!, orderBy: UserOrderBy, limit: Int = 10, offset: Int = 0): [User]
+  getLoggedUser: User
+  getTasks(data: TaskQueryInput!, orderBy: TaskOrderBy, limit: Int = 10, offset: Int = 0): [Task]
+  getLoggedTask(data: TaskQueryInput, orderBy: TaskOrderBy, limit: Int = 10, offset: Int = 0): [Task]
 }
 
 type Mutation {
   createUser(data: CreateUserInput): User
   updateUser(id: ID!, where: UpdateUserInput!): User
-  deleteUser(id: ID!): User
-  createTask(title: String!, userId: ID!): Task
-  updateTask(id: ID!, title: String!): Task
-  deleteTask(id: ID!): Task
+  deleteUser(input: UserQueryInput): Count
+  AddTask(input: CreateTaskInput): Count
+  createTask(input: CreateTaskInput): Task
+  updateTask(taskId: ID!, input: UpdateTaskInput): Task
+  deleteTask(where: TaskQueryInput): Count
   login(email: String!, password: String!): String
 }
 
-input UserQueryInput{
-  limit: Int = 10
-  offset: Int = 0
+input UserQueryInput {
   role: Role
   names_in: [String]
-  ids_in: [String]
+  ids_in: [ID]
   status: TaskStatus
   userWithoutTasks: Boolean
 }
 
-enum TaskStatus{
+input TaskQueryInput {
+  titles_in: [String]
+  ids_in: [ID]
+  status: TaskStatus
+  assigneeIds_in: [ID]
+}
+
+enum TaskStatus {
   pending
   completed
 }
 
-enum UserOrderBy{
+enum UserOrderBy {
   name_asc
   name_desc
   role_asc
@@ -63,15 +71,40 @@ enum UserOrderBy{
   id_desc
 }
 
-input CreateUserInput{
+enum TaskOrderBy {
+  title_asc
+  title_desc
+  id_asc
+  id_desc
+}
+
+input CreateUserInput {
   name: String
   email: String!
   password: String!
   role: Role = USER
 }
 
-input UpdateUserInput{
+input UpdateUserInput {
   name: String
   password: String
   profilePic: String
+  email: String
+}
+
+input CreateTaskInput {
+  title: String
+  description: String
+  assigneeIds_in: [ID]
+}
+
+input UpdateTaskInput {
+  title: String
+  status: TaskStatus
+  description: String
+  assigneeId: ID
+}
+
+type Count {
+  count: Int!
 }

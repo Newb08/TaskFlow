@@ -11,11 +11,10 @@ const prisma = new PrismaClient();
 
 const resolvers = {
   Query: {
-    getUsers: async (parent, { data, orderBy }, context) => {
-      // console.log(parent)
+    getUsers: async (parent, { data, orderBy, limit = 10, offset = 0 }, context) => {
       try {
         adminAuth(context);
-        const { role, limit, offset, status, names_in, userWithoutTasks, ids_in } = data || {};
+        const { role, status, names_in, userWithoutTasks, ids_in } = data || {};
 
         let order = {};
         if (orderBy) {
@@ -41,56 +40,75 @@ const resolvers = {
         console.log('Error from getUsers', error);
       }
     },
-    // getUserById: async (_, { id }, context) => {
-    //   // console.log("Context: ",context)
-    //   try {
-    //     try {
-    //       userAuth(context, id);
-    //     } catch {
-    //       adminAuth(context);
-    //     }
-    //     const user = await prisma.user.findFirst({
-    //       where: { id: id },
-    //     });
-    //     if (!user) throw new Error('User not found');
-    //     return user;
-    //   } catch (error) {
-    //     console.log('Error from getUserById', error);
-    //   }
-    // },
-    getAllTasks: async () => {
-      try {
-        return await prisma.task.findMany();
-      } catch (error) {
-        console.log('Error from getAllTasks', error);
-      }
-    },
-    getTaskById: async (_, { id }) => {
-      try {
-        const task = await prisma.task.findFirst({
-          where: { id: id },
-        });
-        if (!task) throw new Error('Task not found');
-        return task;
-      } catch (error) {
-        console.log('Error from getTaskById', error);
-      }
-    },
     getLoggedUser: async (parent, _, context) => {
       try {
-        const userId = userAuth(context);
+        const { userId } = userAuth(context);
         if (!userId) throw new Error('Unauthorized');
-        const user = await prisma.user.findFirst({
+        const user = await prisma.user.findUnique({
           where: { id: userId },
         });
         if (!user) throw new Error('User not found');
         return user;
       } catch (error) {
-        console.log('Error from getUserById', error);
+        console.log('Error from getLoggedUser', error);
+      }
+    },
+    getTasks: async (parent, { data, orderBy, limit = 10, offset = 0 }, context) => {
+      try {
+        adminAuth(context);
+        const { status, titles_in, ids_in, assigneeIds_in } = data || {};
+
+        let order = {};
+        if (orderBy) {
+          const [field, direction] = orderBy.split('_');
+          order = { [field]: direction };
+        }
+        return await prisma.task.findMany({
+          where: {
+            id: { in: ids_in },
+            title: { in: titles_in },
+            status: status,
+            assigneeId: { in: assigneeIds_in },
+          },
+          take: limit,
+          skip: offset,
+          orderBy: order,
+        });
+      } catch (error) {
+        console.log('Error from getTasks', error);
+      }
+    },
+    getLoggedTask: async (parent, { data, orderBy, limit = 10, offset = 0 }, context) => {
+      try {
+        const { userId } = userAuth(context);
+        if (!userId) throw new Error('Unauthorized');
+        const { status, titles_in, ids_in } = data || {};
+        let order = {};
+        if (orderBy) {
+          const [field, direction] = orderBy.split('_');
+          order = { [field]: direction };
+        }
+
+        const user = await prisma.task.findMany({
+          where: {
+            assigneeId: userId,
+            id: { in: ids_in },
+            title: { in: titles_in },
+            status: status,
+          },
+          take: limit,
+          skip: offset,
+          orderBy: order,
+        });
+        if (!user) throw new Error('User not found');
+        return user;
+      } catch (error) {
+        console.log('Error from getLoggedTask', error);
       }
     },
   },
   Mutation: {
+    // User CUD Operations
     createUser: async (_, { data }, context) => {
       try {
         adminAuth(context);
@@ -109,12 +127,13 @@ const resolvers = {
         if (context.user.role !== 'ADMIN' && context.user.id !== id)
           throw new Error('Unauthorized: You can only update your own profile.');
 
-        const { name, profilePic, password } = where || {};
+        const { name, profilePic, password, email } = where || {};
         let updatedData = {};
 
         if (name) updatedData.name = name;
         if (password) updatedData.password = await bcrypt.hash(password, 10);
         if (profilePic) updatedData.profilePic = profilePic;
+        if (email) updatedData.email = email;
 
         return await prisma.user.update({
           where: { id: id },
@@ -124,39 +143,111 @@ const resolvers = {
         console.log('Error from updateUser', error);
       }
     },
-    deleteUser: async (_, { id }, context) => {
+    deleteUser: async (_, { input }, context) => {
       try {
         adminAuth(context);
-        return await prisma.user.delete({
-          where: { id: id },
+        const { ids_in, names_in, userWithoutTasks } = input || {};
+        return await prisma.user.deleteMany({
+          where: {
+            id: { in: ids_in },
+            name: { in: names_in },
+            tasks: userWithoutTasks ? { none: {} } : undefined,
+          },
         });
       } catch (error) {
         console.log('Error from deleteUser', error);
       }
     },
-    createTask: async (_, { title, userId }) => {
+
+    // Task CUD Operations
+
+    AddTask: async (_, { input }, context) => {
       try {
+        adminAuth(context);
+        const { title, description, assigneeIds_in } = input || {};
+        let createData = [];
+        for (const id of assigneeIds_in) {
+          let userData = {};
+          userData.title = title;
+          userData.assigneeId = id;
+          if (description) userData.description = description;
+          userData.uniqueTitle = `${id}_${title}`;
+          userData.createdBy = 'ADMIN';
+          createData.push(userData);
+        }
+
+        return await prisma.task.createMany({
+          data: createData,
+        });
+      } catch (error) {
+        console.log('Error from addTask', error);
+      }
+    },
+    createTask: async (_, { input }, context) => {
+      try {
+        const { userId } = userAuth(context);
+        const { title, description } = input || {};
+
+        let createData = {};
+        createData.assigneeId = userId;
+        createData.title = title;
+        if (description) createData.description = description;
+        createData.uniqueTitle = `${userId}_${title}`;
+        createData.createdBy = 'USER';
+
         return await prisma.task.create({
-          data: { title: title, assigneeId: userId },
+          data: createData,
         });
       } catch (error) {
         console.log('Error from createTask', error);
       }
     },
-    updateTask: async (_, { id, title }) => {
+    updateTask: async (_, { taskId, input }, context) => {
       try {
+        const { userId, role } = userAuth(context);
+        const { title, description, status, assigneeId } = input || {};
+        let updatedData = {};
+        // console.log(taskId, input)
+        if (description) updatedData.description = description;
+        if (status) updatedData.status = status;
+        if (title) {
+          updatedData.title = title;
+          updatedData.uniqueTitle = `${assigneeId}_${title}`;
+        }
+        const whereCondition = {
+          id: taskId,
+        };
+        if(role === "USER"){
+          whereCondition.assigneeId= userId
+          if(title)
+          updatedData.uniqueTitle = `${userId}_${title}`;
+        }
+        // console.log(updatedData)
         return await prisma.task.update({
-          where: { id: id },
-          data: { title: title },
+          where: whereCondition,
+          data: updatedData,
         });
       } catch (error) {
         console.log('Error from updateTask', error);
       }
     },
-    deleteTask: async (_, { id }) => {
+    deleteTask: async (_, { where }, context) => {
       try {
-        return await prisma.task.delete({
-          where: { id: id },
+        const { userId, role } = userAuth(context);
+        const { status, titles_in, ids_in, assigneeIds_in } = where || {};
+
+        const whereCondition = {
+          id: { in: ids_in },
+          status: status,
+          title: { in: titles_in },
+          assigneeId: role == 'ADMIN' ? { in: assigneeIds_in } : userId,
+        };
+        if (role === 'USER') {
+          whereCondition.createdBy = 'USER';
+        }
+
+        return await prisma.task.deleteMany({
+          where: whereCondition,
         });
       } catch (error) {
         console.log('Error from deleteTask', error);
@@ -190,7 +281,6 @@ const resolvers = {
   },
   User: {
     tasks: async (parent) => {
-      // console.log(parent);
       try {
         return await prisma.task.findMany({
           where: { assigneeId: parent.id },

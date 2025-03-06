@@ -6,7 +6,7 @@ export const adminAuth = (context)=>{
 export const userAuth = (context)=>{
     if (!context.user) return null;
     // if (context.user.id !== id) throw new Error('Only ADMIN can access other IDs');
-    return context.user.id
+    return {userId: context.user.id, role: context.user.role}
 }
 
 export const userTaskAuth = (context, id)=>{
