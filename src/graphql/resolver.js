@@ -33,14 +33,16 @@ const resolvers = {
               ? { some: { status: status } }
               : undefined,
           },
-          // select: {
-          //   id: true,
-          //   email: true,
-          //   tasks: {
-          //     where: { status: 'completed' },
-          //     select: { id: true, status: true },
-          //   },
-          // },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            role: true,
+            tasks: {
+              where: { status: status },
+              select: { id: true, status: true, title: true },
+            },
+          },
           take: limit,
           skip: offset,
           orderBy: order,
@@ -84,6 +86,9 @@ const resolvers = {
             title: { in: titles_in },
             status: status,
             assigneeId: { in: assigneeIds_in },
+          },
+          include: {
+            assignee: true
           },
           take: limit,
           skip: offset,
@@ -308,42 +313,6 @@ const resolvers = {
       } catch (error) {
         console.log(error);
         return `Failed to login. ${error}`;
-      }
-    },
-  },
-
-  Task: {
-    assignee: async (parent) => {
-      try {
-        return await prisma.user.findFirst({
-          where: { id: parent.assigneeId },
-        });
-      } catch (error) {
-        console.log('Error from assignee', error);
-        return {
-          success: false,
-          msg: 'Failed to get user details',
-          error: error.message || 'An unexpected error occurred',
-          data: [],
-        };
-      }
-    },
-  },
-
-  User: {
-    tasks: async (parent) => {
-      try {
-        return await prisma.task.findMany({
-          where: { assigneeId: parent.id },
-        });
-      } catch (error) {
-        console.log('Error from tasks', error);
-        return {
-          success: false,
-          msg: 'Failed to get task details',
-          error: error.message || 'An unexpected error occurred',
-          data: [],
-        };
       }
     },
   },

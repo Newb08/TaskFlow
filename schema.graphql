@@ -1,7 +1,6 @@
 enum Role {
   USER
   ADMIN
-  # no_role
 }
 
 scalar Date
@@ -19,7 +18,7 @@ type Task {
   id: ID!
   title: String!
   status: TaskStatus!
-  assignee: User!
+  assignee: User
   createdAt: Date!
   description: String
   createdBy: Role
@@ -28,7 +27,7 @@ type Task {
 type Query {
   getUsers(data: UserQueryInput, orderBy: UserOrderBy, limit: Int = 10, offset: Int = 0): [User]
   getLoggedUser: User
-  getTasks(data: TaskQueryInput!, orderBy: TaskOrderBy, limit: Int = 10, offset: Int = 0): [Task]
+  getTasks(data: TaskQueryInput, orderBy: TaskOrderBy, limit: Int = 10, offset: Int = 0): [Task]
   getLoggedTask(data: TaskQueryInput, orderBy: TaskOrderBy, limit: Int = 10, offset: Int = 0): [Task]
 }
 
