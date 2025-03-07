@@ -7,6 +7,17 @@ import resolvers from './graphql/resolver.js';
 import getUser from './middleware/userAuthentication.js';
 import { loadFilesSync } from '@graphql-tools/load-files';
 
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err.message);
+  console.error(err.stack);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise);
+  console.error('Reason:', reason);
+});
+
 const typeDefs = loadFilesSync('./schema.graphql', { extensions: ['graphql'] });
 
 const app = express();

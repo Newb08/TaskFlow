@@ -8,7 +8,9 @@ import { putObjectURL } from '../utils/uploadImg.js';
 dotenv.config();
 const SECRET_KEY = process.env.JWT_SECRET || 'secretKey';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  log: ["info", "query"]
+});
 
 const resolvers = {
   Query: {
@@ -24,28 +26,38 @@ const resolvers = {
         }
         const users = await prisma.user.findMany({
           where: {
-            role,
-            id: { in: ids_in },
+            // role,
+            // id: { in: ids_in },
             name: { in: names_in },
-            tasks: userWithoutTasks
-              ? { none: {} }
-              : status
-              ? { some: { status: status } }
-              : undefined,
+            // tasks: userWithoutTasks
+            //   ? { none: {} }
+            //   : status
+            //   ? { some: { status: status } }
+            //   : undefined,
+            // tasks : { every: { status: "completed" } }
           },
           // select: {
           //   id: true,
           //   email: true,
-          //   tasks: {
-          //     where: { status: 'completed' },
-          //     select: { id: true, status: true },
-          //   },
+          //   // tasks: {
+          //   //   where: { status: "completed" },
+          //   //   select: { id: true, title: true },
+          //   // },
           // },
+          include: {
+            tasks: {
+              where: { status: "completed" },
+              select: { id: true, title: true },
+            },
+          },
           take: limit,
           skip: offset,
           orderBy: order,
         });
         if (users.length === 0) throw new Error('Failed to fetch user');
+        console.log("Users:\n",JSON.stringify(users, null, 2))
+        
+        // console.log("Users:\n")
         return users;
       } catch (error) {
         console.log('Error from getUsers', error);

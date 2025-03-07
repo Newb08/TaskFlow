@@ -16,11 +16,11 @@ type User {
 }
 
 type Task {
-  id: ID!
-  title: String!
-  status: TaskStatus!
-  assignee: User!
-  createdAt: Date!
+  id: ID
+  title: String
+  status: TaskStatus
+  assignee: User
+  createdAt: Date
   description: String
   createdBy: Role
 }
