@@ -5,15 +5,21 @@ import cors from 'cors';
 import bodyParser from 'body-parser';
 import resolvers from './graphql/resolver.js';
 import getUser from './middleware/userAuthentication.js';
-import { loadFilesSync } from "@graphql-tools/load-files";
+import { loadFilesSync } from '@graphql-tools/load-files';
 
-const typeDefs = loadFilesSync("./schema.graphql", { extensions: ["graphql"] });
+const typeDefs = loadFilesSync('./schema.graphql', { extensions: ['graphql'] });
 
 const app = express();
 
 const server = new ApolloServer({
   typeDefs,
   resolvers,
+  formatError: (err) => {
+    console.error(err);
+    return {
+      message: err.message || "Internal Server Error",
+    };
+  },
 });
 
 await server.start();

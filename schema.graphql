@@ -1,6 +1,7 @@
 enum Role {
   USER
   ADMIN
+  # no_role
 }
 
 scalar Date
@@ -9,7 +10,7 @@ type User {
   id: ID!
   name: String
   email: String!
-  role: Role!
+  role: Role
   tasks: [Task]
   profilePic: String
 }
@@ -20,13 +21,12 @@ type Task {
   status: TaskStatus!
   assignee: User!
   createdAt: Date!
-  uniqueTitle: String
   description: String
   createdBy: Role
 }
 
 type Query {
-  getUsers(data: UserQueryInput!, orderBy: UserOrderBy, limit: Int = 10, offset: Int = 0): [User]
+  getUsers(data: UserQueryInput, orderBy: UserOrderBy, limit: Int = 10, offset: Int = 0): [User]
   getLoggedUser: User
   getTasks(data: TaskQueryInput!, orderBy: TaskOrderBy, limit: Int = 10, offset: Int = 0): [Task]
   getLoggedTask(data: TaskQueryInput, orderBy: TaskOrderBy, limit: Int = 10, offset: Int = 0): [Task]
@@ -34,14 +34,13 @@ type Query {
 
 type Mutation {
   createUser(data: CreateUserInput): User
-  updateUser(id: ID!, where: UpdateUserInput!): User
+  updateUser(id: ID!, input: UpdateUserInput, imgUpdate: Boolean!): User
   deleteUser(input: UserQueryInput): Count
   AddTask(input: CreateTaskInput): Count
   createTask(input: CreateTaskInput): Task
   updateTask(taskId: ID!, input: UpdateTaskInput): Task
   deleteTask(where: TaskQueryInput): Count
   login(email: String!, password: String!): String
-  uploadImg(id: ID!): User
 }
 
 input UserQueryInput {
@@ -91,6 +90,7 @@ input UpdateUserInput {
   name: String
   password: String
   email: String
+  profilePic: String
 }
 
 input CreateTaskInput {
@@ -103,7 +103,6 @@ input UpdateTaskInput {
   title: String
   status: TaskStatus
   description: String
-  assigneeId: ID
 }
 
 type Count {

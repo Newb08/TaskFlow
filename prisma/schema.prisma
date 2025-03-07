@@ -14,17 +14,14 @@ datasource db {
 }
 
 model Task {
-  id          String   @id @default(uuid())
-  createdAt   DateTime @default(now())
-  // updatedAt   DateTime @updatedAt
-  title       String   @db.VarChar(255)
-  description String  @default("No description provided.")
-  status      String   @default("pending")
-  // dueDate     DateTime?
-  assignee    User     @relation(fields: [assigneeId], references: [id], onDelete: Cascade)
+  id          String     @id @default(uuid())
+  createdAt   DateTime   @default(now())
+  title       String     @db.VarChar(255)
+  description String     @default("No description provided.")
+  status      TaskStatus @default(pending)
+  assignee    User       @relation(fields: [assigneeId], references: [id], onDelete: Cascade)
   assigneeId  String
-  createdBy   Role     @default(ADMIN)
-  uniqueTitle String   @unique
+  createdBy   Role       @default(ADMIN)
 
   @@unique([assigneeId, title])
 }
@@ -34,7 +31,6 @@ model User {
   email      String    @unique
   profilePic String    @default("https://mehul-private-bucket.s3.ap-south-1.amazonaws.com/uploads/profile+Pic.webp")
   name       String?
-  dob        DateTime?
   password   String
   role       Role
   tasks      Task[]
@@ -43,4 +39,9 @@ model User {
 enum Role {
   USER
   ADMIN
+}
+
+enum TaskStatus {
+  pending
+  completed
 }

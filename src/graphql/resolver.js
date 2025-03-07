@@ -22,7 +22,7 @@ const resolvers = {
           const [field, direction] = orderBy.split('_');
           order = { [field]: direction };
         }
-        return await prisma.user.findMany({
+        const users = await prisma.user.findMany({
           where: {
             role,
             id: { in: ids_in },
@@ -33,12 +33,23 @@ const resolvers = {
               ? { some: { status: status } }
               : undefined,
           },
+          // select: {
+          //   id: true,
+          //   email: true,
+          //   tasks: {
+          //     where: { status: 'completed' },
+          //     select: { id: true, status: true },
+          //   },
+          // },
           take: limit,
           skip: offset,
           orderBy: order,
         });
+        if (users.length === 0) throw new Error('Failed to fetch user');
+        return users;
       } catch (error) {
         console.log('Error from getUsers', error);
+        throw new Error('Failed to fetch user');
       }
     },
 
@@ -53,6 +64,7 @@ const resolvers = {
         return user;
       } catch (error) {
         console.log('Error from getLoggedUser', error);
+        throw new Error('Failed to fetch user data');
       }
     },
 
@@ -66,7 +78,7 @@ const resolvers = {
           const [field, direction] = orderBy.split('_');
           order = { [field]: direction };
         }
-        return await prisma.task.findMany({
+        const tasks = await prisma.task.findMany({
           where: {
             id: { in: ids_in },
             title: { in: titles_in },
@@ -77,8 +89,11 @@ const resolvers = {
           skip: offset,
           orderBy: order,
         });
+        if (!tasks.length) throw new Error('Task not found');
+        return tasks;
       } catch (error) {
         console.log('Error from getTasks', error);
+        throw new Error('Failed to fetch task');
       }
     },
 
@@ -93,7 +108,7 @@ const resolvers = {
           order = { [field]: direction };
         }
 
-        const user = await prisma.task.findMany({
+        const tasks = await prisma.task.findMany({
           where: {
             assigneeId: userId,
             id: { in: ids_in },
@@ -104,10 +119,11 @@ const resolvers = {
           skip: offset,
           orderBy: order,
         });
-        if (!user) throw new Error('User not found');
-        return user;
+        if (!tasks.length) throw new Error('Task not found');
+        return tasks;
       } catch (error) {
         console.log('Error from getLoggedTask', error);
+        throw new Error('Failed to fetch task');
       }
     },
   },
@@ -119,33 +135,44 @@ const resolvers = {
         adminAuth(context);
         const { role = 'USER', name, email, password } = data || {};
         const encryptPass = await bcrypt.hash(password, 10);
-        return await prisma.user.create({
+        const user = await prisma.user.create({
           data: { email, password: encryptPass, name, role },
         });
+        if (!user) throw new Error('Failed to create user');
+        return user;
       } catch (error) {
         console.log('Error from createUser', error);
+        throw new Error('Failed to create user');
       }
     },
 
-    updateUser: async (_, { id, where }, context) => {
+    updateUser: async (_, { id, input, imgUpdate }, context) => {
       try {
         if (!context.user) throw new Error('Unauthorized');
         if (context.user.role !== 'ADMIN' && context.user.id !== id)
           throw new Error('Unauthorized: You can only update your own profile.');
 
-        const { name, password, email } = where || {};
+        const { name, password, email } = input || {};
         let updatedData = {};
 
+        if (imgUpdate) {
+          const img = await putObjectURL(`${id}.jpg`, 'image/jpg');
+          console.log(img);
+          updatedData.profilePic = img.split('.jpg')[0] + '.jpg';
+        }
         if (name) updatedData.name = name;
         if (password) updatedData.password = await bcrypt.hash(password, 10);
         if (email) updatedData.email = email;
 
-        return await prisma.user.update({
+        const user = await prisma.user.update({
           where: { id: id },
           data: updatedData,
         });
+        if (!user) throw new Error('Failed to update user');
+        return user;
       } catch (error) {
         console.log('Error from updateUser', error);
+        throw new Error('Failed to update user');
       }
     },
 
@@ -153,15 +180,18 @@ const resolvers = {
       try {
         adminAuth(context);
         const { ids_in, names_in, userWithoutTasks } = input || {};
-        return await prisma.user.deleteMany({
+        const count = await prisma.user.deleteMany({
           where: {
             id: { in: ids_in },
             name: { in: names_in },
             tasks: userWithoutTasks ? { none: {} } : undefined,
           },
         });
+        if (!count) throw new Error('Failed to delete user');
+        return count;
       } catch (error) {
         console.log('Error from deleteUser', error);
+        throw new Error('Failed to delete user');
       }
     },
 
@@ -177,16 +207,18 @@ const resolvers = {
           userData.title = title;
           userData.assigneeId = id;
           if (description) userData.description = description;
-          userData.uniqueTitle = `${id}_${title}`;
           userData.createdBy = 'ADMIN';
           createData.push(userData);
         }
 
-        return await prisma.task.createMany({
+        const count = await prisma.task.createMany({
           data: createData,
         });
+        if (!count) throw new Error('Failed to create Task');
+        return count;
       } catch (error) {
         console.log('Error from addTask', error);
+        throw new Error('Failed to create task');
       }
     },
 
@@ -199,43 +231,41 @@ const resolvers = {
         createData.assigneeId = userId;
         createData.title = title;
         if (description) createData.description = description;
-        createData.uniqueTitle = `${userId}_${title}`;
         createData.createdBy = 'USER';
 
-        return await prisma.task.create({
+        const task = await prisma.task.create({
           data: createData,
         });
+        if (!task) throw new Error('Failed to create task');
+        return task;
       } catch (error) {
         console.log('Error from createTask', error);
+        throw new Error('Failed to create task');
       }
     },
 
     updateTask: async (_, { taskId, input }, context) => {
       try {
         const { userId, role } = userAuth(context);
-        const { title, description, status, assigneeId } = input || {};
+        const { title, description, status } = input || {};
         let updatedData = {};
-        // console.log(taskId, input)
         if (description) updatedData.description = description;
         if (status) updatedData.status = status;
-        if (title) {
-          updatedData.title = title;
-          updatedData.uniqueTitle = `${assigneeId}_${title}`;
-        }
-        const whereCondition = {
-          id: taskId,
-        };
+        if (title) updatedData.title = title;
+        let whereCondition = {};
+        whereCondition.id = taskId;
         if (role === 'USER') {
           whereCondition.assigneeId = userId;
-          if (title) updatedData.uniqueTitle = `${userId}_${title}`;
         }
-        // console.log(updatedData)
-        return await prisma.task.update({
+        const task = await prisma.task.update({
           where: whereCondition,
           data: updatedData,
         });
+        if (!task) throw new Error('Failed to update task');
+        return task;
       } catch (error) {
         console.log('Error from updateTask', error);
+        throw new Error('Failed to update task');
       }
     },
 
@@ -253,12 +283,14 @@ const resolvers = {
         if (role === 'USER') {
           whereCondition.createdBy = 'USER';
         }
-
-        return await prisma.task.deleteMany({
+        const count = await prisma.task.deleteMany({
           where: whereCondition,
         });
+        if (!count) throw new Error('Failed to delete task');
+        return count;
       } catch (error) {
         console.log('Error from deleteTask', error);
+        throw new Error('Failed to delete task');
       }
     },
 
@@ -271,25 +303,11 @@ const resolvers = {
         if (!user || !bcrypt.compareSync(password, user.password))
           throw new Error('Incorrect Password/User-email');
 
-        return jwt.sign({ id: user.id, role: user.role }, SECRET_KEY, { expiresIn: '1h' });
+        const token = jwt.sign({ id: user.id, role: user.role }, SECRET_KEY, { expiresIn: '1h' });
+        return token;
       } catch (error) {
         console.log(error);
-      }
-    },
-
-    uploadImg: async (_, { id }, context) => {
-      try {
-        const { userId, role } = userAuth(context);
-        const img = await putObjectURL(`${userId}.jpg`, 'image/jpg');
-        console.log(img)
-        const imgUrl = img.split('.jpg')[0] + '.jpg';
-        const uid = role === 'ADMIN' ? id : userId;
-        await prisma.user.update({
-          where: { id: uid },
-          data: { profilePic: imgUrl },
-        });
-      } catch (error) {
-        console.error('Error while uploading img', error);
+        return `Failed to login. ${error}`;
       }
     },
   },
@@ -302,6 +320,12 @@ const resolvers = {
         });
       } catch (error) {
         console.log('Error from assignee', error);
+        return {
+          success: false,
+          msg: 'Failed to get user details',
+          error: error.message || 'An unexpected error occurred',
+          data: [],
+        };
       }
     },
   },
@@ -314,6 +338,12 @@ const resolvers = {
         });
       } catch (error) {
         console.log('Error from tasks', error);
+        return {
+          success: false,
+          msg: 'Failed to get task details',
+          error: error.message || 'An unexpected error occurred',
+          data: [],
+        };
       }
     },
   },
